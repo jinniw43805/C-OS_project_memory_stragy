@@ -25,6 +25,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4FADD3441AB3639200E6CE2F /* decleare.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = decleare.h; sourceTree = "<group>"; };
 		4FD9D9471AB07E68005147EA /* TKU-HomeWork */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "TKU-HomeWork"; sourceTree = BUILT_PRODUCTS_DIR; };
 		4FD9D94A1AB07E68005147EA /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
 		4FD9D94C1AB07E69005147EA /* TKU_HomeWork.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = TKU_HomeWork.1; sourceTree = "<group>"; };
@@ -44,6 +45,7 @@
 		4FD9D93E1AB07E68005147EA = {
 			isa = PBXGroup;
 			children = (
+				4FADD3441AB3639200E6CE2F /* decleare.h */,
 				4FD9D9491AB07E68005147EA /* TKU-HomeWork */,
 				4FD9D9481AB07E68005147EA /* Products */,
 			);
@@ -227,6 +229,7 @@
 				4FD9D9521AB07E69005147EA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
