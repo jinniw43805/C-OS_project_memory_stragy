@@ -9,14 +9,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+int gabege=0;
 typedef int bool;
 #define true 1
 #define false 0
-#define MEMORYSIZE 1000000
-
+#define MEMORYSIZE 10000
+#define MAX(x,y) ( ((x)>(y) ) ? (x):(y) )
 char buffer [MEMORYSIZE];
-
+typedef struct memorynode{
+    int startAd;
+    int endAd;
+    int space;
+    struct memorynode *next;
+}memoryNode;
 typedef struct node{
     int processID;
     int startTime;
@@ -39,7 +44,10 @@ typedef struct schedule_node{
     int startAd;
     int endAd;
 }Schedule_node;
-
+typedef struct memoryqueue{
+    struct memorynode *head;
+    struct memorynode *tail;
+}memoryQueue;
 typedef struct queue{
     struct node *head;
     struct node *tail;
@@ -54,7 +62,8 @@ char tmp[50];
 void enTxt(char *name,Schedule_node * ptrSchedule);
 void printBufferStatus (void);
 void initBufferStatus(void);
-void firstFitPutIntoMemory(Schedule_node *);
+int firstFitPutIntoMemory(Schedule_node *);
+int BestPutIntoMemory(Schedule_node *);
 void releaseMemory(Schedule_node *);
 void enSchedule_queue(Queue *queue,Schedule_queue *,Schedule_queue *);
 void process_schedule_queue(void (*fitFunctionType)(),Schedule_queue *Scheq,Schedule_node *ptrSchedule);
@@ -63,9 +72,12 @@ Schedule_node *sort( Schedule_node *start );
 Schedule_node *list_switch( Schedule_node *l1, Schedule_node *l2 );
 //Declaration: For File processing
 FILE *fp;
+FILE *wfile;
+FILE *xfile;
 //End Declaration
 int main(int argc, const char * argv[])
 {
+
     initBufferStatus();
     //Declaration: For processing file to queue
     char tmp[50];
@@ -102,7 +114,14 @@ int main(int argc, const char * argv[])
         printf("File open failed\n");
         exit(1);
     }
-    
+    wfile=fopen("first.txt","w+");
+    if (!wfile) {
+        printf("fail to load");
+    }
+    xfile=fopen("best.txt", "w+");
+    if (!xfile) {
+        printf("fail to load xfile");
+    }
     //fprintf(wfile, "test\n");
     //End Read
     
@@ -188,12 +207,13 @@ int main(int argc, const char * argv[])
     
     EnterPtr=EnterQ->head;
     ReleaPtr=ReleaQ->head;
-    
+    int cache;
     while (EnterPtr!=NULL || ReleaPtr!=NULL) {
         if (EnterPtr==NULL) {
 
-            printf("Enter Queue is empty!\n");
+            //printf("Enter Queue is empty!\n");
             releaseMemory(ReleaPtr);
+            
             ReleaPtr=ReleaPtr->next;
             
         }else if (ReleaPtr==NULL){
@@ -207,45 +227,84 @@ int main(int argc, const char * argv[])
             
             //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
             releaseMemory(ReleaPtr);
+            
             ReleaPtr=ReleaPtr->next;
         }else if (EnterPtr->time == ReleaPtr->time){
             
             //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
             releaseMemory(ReleaPtr);
+        
             ReleaPtr=ReleaPtr->next;
         }else if(EnterPtr->time < ReleaPtr->time){
             
-            //printf("processing Enter %d, Start:%d\n",EnterPtr->processID,EnterPtr->time);
             
-            firstFitPutIntoMemory( EnterPtr);
-            
+            cache=firstFitPutIntoMemory( EnterPtr);
+            if (cache==1) {
+                fprintf(wfile,"%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+            }else if(cache==0){
+                fprintf(wfile,"%d %d\n",EnterPtr->processID,MEMORYSIZE);
+            }
+        
             EnterPtr=EnterPtr->next;
         }else{
             printf("error");
         }
     }
     
-
+    printf("First fit complete\n");
     //End First
     
     
+    printf("Best fit\n");
+//Best-Allocation Algo
     
-    //Best-Allocation Algo
+    EnterPtr=EnterQ->head;
+    ReleaPtr=ReleaQ->head;
+    while (EnterPtr!=NULL || ReleaPtr!=NULL) {
+        if (EnterPtr==NULL) {
+            
+            //printf("Enter Queue is empty!\n");
+            releaseMemory(ReleaPtr);
+            ReleaPtr=ReleaPtr->next;
+            
+        }else if (ReleaPtr==NULL){
+            
+            //printf("Release Queue is empty!\n");
+            BestPutIntoMemory(EnterPtr);
+            EnterPtr=EnterPtr->next;
+        }
+        
+        else if (EnterPtr->time > ReleaPtr->time) {
+            
+            //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
+            releaseMemory(ReleaPtr);
+            ReleaPtr=ReleaPtr->next;
+        }else if (EnterPtr->time == ReleaPtr->time){
+            
+           //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
+            releaseMemory(ReleaPtr);
+            ReleaPtr=ReleaPtr->next;
+        }else if(EnterPtr->time < ReleaPtr->time){
+            
+            
+            BestPutIntoMemory(EnterPtr);
+            fprintf(xfile,"%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+            EnterPtr=EnterPtr->next;
+        }else{
+            //printf("error");
+        }
+    }
     
-    
-//    ptrSchedule=Scheq->head;
-//    while (ptrSchedule!=NULL) {
-//        
-//        ptrSchedule=ptrSchedule->next;
-//    }
-//    
     //End Best
     
     //Worst-Allocation Algo
     
+    
+    
+    
     //End Worst
     
-    
+    printf("\ngabege:%d",gabege);
     fclose(fp);
     return 0;
 }
@@ -311,14 +370,13 @@ void enSchedule_queue(Queue *queue,Schedule_queue *EnterQ,Schedule_queue *ReleaQ
     }
 }
 
-void firstFitPutIntoMemory(Schedule_node *ptrSchedule){
+int firstFitPutIntoMemory(Schedule_node *ptrSchedule){
     int count=0;
     int i=0;
     int startAd,endAd;
     int flag=false;
     int space=ptrSchedule->alloSpace;
     
-    //wfile=fopen("first.txt", "w");
     //For file Declaration
     
     
@@ -340,10 +398,7 @@ void firstFitPutIntoMemory(Schedule_node *ptrSchedule){
                 startAd=i-space+1;
                 ptrSchedule->startAd=startAd;
                 //3.Print out the log
-                //fprintf(wfile,"%d %d\n",ptrSchedule->processID,startAd);
-                printf("Succesed enter process id:%d ,startAd:%d\n",ptrSchedule->processID,startAd);
                 
-                //printf("My release id is:%d,startAd:%d,endAd:%d\n",ptrSchedule->processID,startAd,endAd);
                 //4.Break the loop
                 break;
             }
@@ -358,53 +413,106 @@ void firstFitPutIntoMemory(Schedule_node *ptrSchedule){
         }
         
         //enTxt("first.txt", ptrSchedule);
-        
+        return 1;
     }else if(flag==false){
-        
-        
-//        printf("Fail to allocate process:%d\n",ptrSchedule->processID);
-//        //fail to allocate
-//        printf("false-id:%d\n",ptrSchedule->processID);
-//        printf("front id:%d,next id:%d",ptrSchedule->front->processID,ptrSchedule->next->processID);
-//        if (ptrSchedule->releaseNode->next==NULL) {
-//            printf("next error\n ");
-//        }else if (ptrSchedule->releaseNode->front==NULL){
-//            printf("front error\n");
-//        }
-//        //        //sent signal to release node, tell him kill himself,means remove from queue
-//        printf("i wanna remove %d\n",ptrSchedule->releaseNode->processID);
-//        
-//        if (ptrSchedule->releaseNode==NULL) {
-//            
-//        }
-//              //  ptrSchedule->releaseNode->front->next=ptrSchedule->releaseNode->next;
-//              //  ptrSchedule->releaseNode->next->front=ptrSchedule->releaseNode->front;
-//        
-//        printf("Succese remove process:%d\n",ptrSchedule->processID);
+        gabege++;
+        ptrSchedule->releaseNode->endAd=-1;
+        ptrSchedule->releaseNode->startAd=-1;
+        return 0;
+    }
+    return -1;
+}
+int BestPutIntoMemory(Schedule_node *ptrSchedule){
+    int i=0,count=0;
+    int minimalLocation=0;
+    int startAd,endAd;
+    int memoryStartAd=0,memoryEndAd=0;
+    int flag=false;
+    int space=ptrSchedule->alloSpace;
+    int smallestflag=MEMORYSIZE+1;
+    int smallStartAd=0,smallEndAd=0;
+    for (i=0; i<MEMORYSIZE-1; i++) {
+        if (buffer[i]=='0') {
+            
+            if (buffer[i+1]=='1') {
+                //end
+                memoryEndAd=i;
+                if ((memoryEndAd-memoryStartAd)+1 >= space) {
+                    
+                    if ((memoryEndAd-memoryStartAd)+1 < smallestflag ) {
+                        smallestflag=(memoryEndAd-memoryStartAd)+1;
+                        smallStartAd=memoryStartAd;
+                        smallEndAd=memoryEndAd;
+                    }
+                }
+                
+            }else if (buffer[i+1=='0']){
+                memoryEndAd=i+1;
+            }
+        }else if (buffer[i]=='1'){
+            if (buffer[i+1]=='1') {
+                
+            }else if(buffer[i+1]=='0'){
+                memoryStartAd=i+1;
+            }
+        }
     }
     
+    if (smallestflag!=MEMORYSIZE+1) {
+        //compare two
+        if ((smallEndAd-smallStartAd)+1 < (memoryEndAd-memoryStartAd+1)) {
+            startAd=smallStartAd;
+            endAd=endAd;
+            
+            ptrSchedule->releaseNode->endAd=endAd;
+            ptrSchedule->releaseNode->startAd=startAd;
+            ptrSchedule->startAd=startAd;
+            
+            while (startAd<=endAd) {
+                buffer[startAd]='1';
+                startAd++;
+            }
+        }
+    }else{
+        if ((memoryEndAd-memoryStartAd)+1 >= space) {
+            
+            //use memoryAd to allocate
+            startAd=memoryStartAd;
+            endAd=memoryEndAd;
+            
+            ptrSchedule->releaseNode->endAd=endAd;
+            ptrSchedule->releaseNode->startAd=startAd;
+            ptrSchedule->startAd=startAd;
+            
+            while (startAd<=endAd) {
+                buffer[startAd]='1';
+                startAd++;
+            }
+            
+        }else{
+            //cant putinto
+        }
+        
+    }
+    
+    return -1;
 }
+
 void releaseMemory(Schedule_node *ptrSchedule){
-//    printf("Release Node, Process ID:%d,startAd:%d,EndAd:%d\n",ptrSchedule->processID,ptrSchedule->startAd,ptrSchedule->endAd);
-    if (ptrSchedule->startAd==0 && ptrSchedule->endAd ==0) {
+    int flag=-1;
+    if (ptrSchedule->startAd==-1 && ptrSchedule->endAd ==-1) {
         //Not enter Memory at all , skip
+        flag=0;
     }
     else{
         //Free Memory
-        //printf("Remove from process:%d , start:%d ,end:%d,time:%d\n ",ptrSchedule->processID,ptrSchedule->startAd,ptrSchedule->endAd,ptrSchedule->time);
-        int i;
-        for (i=ptrSchedule->startAd; i<=ptrSchedule->endAd; i++) {
-            buffer[i]='0';
+        while (ptrSchedule->startAd<=ptrSchedule->endAd) {
+            buffer[ptrSchedule->startAd]='0';
+            ptrSchedule->startAd++;
         }
+        flag=1;
     }
-}
-void printBufferStatus(void){
-    int i;
-    for (i = 0; i< MEMORYSIZE; i++)
-    {
-        printf("%c ",buffer[i]);
-    }
-    
+
 }
 void initBufferStatus(void){
     int i;
@@ -438,7 +546,6 @@ Schedule_node *append( Schedule_node *start, int newdata )
     new->next = NULL;
     return ret ;
 }
-
 Schedule_node *sort( Schedule_node *start )
 {
     Schedule_node *p, *q, *top;
