@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 int gabege=0;
+int gabege2=0;
 typedef int bool;
 #define true 1
 #define false 0
@@ -117,7 +118,7 @@ int main(int argc, const char * argv[])
     }
     wfile=fopen("log_first.txt","w+");
     if (!wfile) {
-        printf("fail to load");
+        printf("fail to load wfile");
     }
     xfile=fopen("log_best.txt", "w+");
     if (!xfile) {
@@ -197,27 +198,23 @@ int main(int argc, const char * argv[])
     while (EnterPtr!=NULL || ReleaPtr!=NULL) {
         if (EnterPtr==NULL) {
 
-            //printf("Enter Queue is empty!\n");
             releaseMemory(ReleaPtr);
             
             ReleaPtr=ReleaPtr->next;
             
         }else if (ReleaPtr==NULL){
 
-            //printf("Release Queue is empty!\n");
             firstFitPutIntoMemory(EnterPtr);
             EnterPtr=EnterPtr->next;
         }
         
         else if (EnterPtr->time > ReleaPtr->time) {
             
-            //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
             releaseMemory(ReleaPtr);
             
             ReleaPtr=ReleaPtr->next;
         }else if (EnterPtr->time == ReleaPtr->time){
             
-            //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
             releaseMemory(ReleaPtr);
         
             ReleaPtr=ReleaPtr->next;
@@ -236,6 +233,7 @@ int main(int argc, const char * argv[])
             printf("error");
         }
     }
+    fclose(wfile);
     
     printf("First fit complete\n");
     //End First
@@ -246,6 +244,7 @@ int main(int argc, const char * argv[])
     
     EnterPtr=EnterQ->head;
     ReleaPtr=ReleaQ->head;
+    
     while (EnterPtr!=NULL || ReleaPtr!=NULL) {
         if (EnterPtr==NULL) {
             
@@ -253,8 +252,16 @@ int main(int argc, const char * argv[])
             ReleaPtr=ReleaPtr->next;
             
         }else if (ReleaPtr==NULL){
-            
-            BestPutIntoMemory(EnterPtr);
+            cache=BestPutIntoMemory(EnterPtr);
+            if (cache==0) {
+                
+                //printf("%d %d\n",EnterPtr->processID,MEMORYSIZE);
+                
+            }else if (cache==1){
+                gabege2++;
+                //printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                
+            }
             EnterPtr=EnterPtr->next;
         }
         
@@ -267,13 +274,12 @@ int main(int argc, const char * argv[])
             releaseMemory(ReleaPtr);
             ReleaPtr=ReleaPtr->next;
         }else if(EnterPtr->time < ReleaPtr->time){
-            
             cache=BestPutIntoMemory(EnterPtr);
             if (cache==0) {
-                printf("Fail %d %d\n",EnterPtr->processID,MEMORYSIZE);
-
+                gabege++;
             }else if (cache==1){
-                printf("Success: %d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                gabege2++;
+                printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
 
             }
             
@@ -292,8 +298,8 @@ int main(int argc, const char * argv[])
     
     //End Worst
     
-    printf("\ngabege:%d",gabege);
-    fclose(fp);
+    printf("\ngabege:%d\ngabege2:%d\n",gabege,gabege2);
+    //fclose(fp);
     return 0;
 }
 void enSchedule_queue(Queue *queue,Schedule_queue *EnterQ,Schedule_queue *ReleaQ){
@@ -311,16 +317,12 @@ void enSchedule_queue(Queue *queue,Schedule_queue *EnterQ,Schedule_queue *ReleaQ
         new_sche_node_allo->time=ptr->startTime;
         new_sche_node_allo->alloSpace=ptr->alloSpace;
         new_sche_node_allo->States=allocate;
-        
         //release event
-        
         new_sche_node_relea=(Schedule_node*)malloc(sizeof(Schedule_node));
         new_sche_node_relea->processID=ptr->processID;
         new_sche_node_relea->time=ptr->endTime;
         new_sche_node_relea->alloSpace=ptr->alloSpace;
         new_sche_node_relea->States=release;
-        
-        
         //Record where is the release node
         new_sche_node_allo->releaseNode=new_sche_node_relea;
         //End Record
@@ -352,12 +354,9 @@ void enSchedule_queue(Queue *queue,Schedule_queue *EnterQ,Schedule_queue *ReleaQ
             ReleaQ->tail->next=NULL;
         }
         //End Enter Q processing
-        
-        
         ptr=ptr->next;
     }
 }
-
 int firstFitPutIntoMemory(Schedule_node *ptrSchedule){
     int count=0;
     int i=0;
@@ -403,7 +402,7 @@ int firstFitPutIntoMemory(Schedule_node *ptrSchedule){
         //enTxt("first.txt", ptrSchedule);
         return 1;
     }else if(flag==false){
-        gabege++;
+
         ptrSchedule->releaseNode->endAd=-1;
         ptrSchedule->releaseNode->startAd=-1;
         return 0;
@@ -451,7 +450,15 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
             }
         }
     }
-
+    
+    if (memoryEndAd==0&&memoryStartAd==0) {
+        
+        ptrSchedule->releaseNode->startAd=-1;
+        ptrSchedule->releaseNode->endAd=-1;
+        
+        return 0;
+    }
+    
     //Calcute tmp memory size
     memory=(memoryEndAd-memoryStartAd+1);
     if (smallflag==1) {
@@ -473,12 +480,14 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
         }
         
         //use smallestmemory to allocate
+        startAd=smallStartAd;
+        endAd=smallStartAd+space-1;
         
-        ptrSchedule->releaseNode->startAd=smallStartAd;
-        ptrSchedule->releaseNode->endAd=smallStartAd+space-1;
+        ptrSchedule->releaseNode->startAd=startAd;
+        ptrSchedule->releaseNode->endAd=endAd;
         ptrSchedule->startAd=smallStartAd;
         
-        while (smallStartAd<=smallStartAd+space-1) {
+        while (smallStartAd<=endAd) {
             buffer[smallStartAd]='1';
             smallStartAd++;
         }
@@ -488,10 +497,12 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
         //just use tmp memory data
         //must confirm large than space;
         if (memory>=space) {
+            startAd=memoryStartAd;
+            endAd=memoryStartAd+space-1;
             ptrSchedule->releaseNode->startAd=memoryStartAd;
-            ptrSchedule->releaseNode->endAd=memoryStartAd+space-1;
+            ptrSchedule->releaseNode->endAd=endAd;
             ptrSchedule->startAd=memoryStartAd;
-            while (memoryStartAd <= (memoryStartAd+space-1)) {
+            while (memoryStartAd <= endAd) {
                 buffer[memoryStartAd]='1';
                 memoryStartAd++;
             }
@@ -499,8 +510,10 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
         }else{
             //not sufficient to provide space to allocate
             //than mean fail allocate
+            
             ptrSchedule->releaseNode->startAd=-1;
             ptrSchedule->releaseNode->endAd=-1;
+            
             return 0;
         }
     }
