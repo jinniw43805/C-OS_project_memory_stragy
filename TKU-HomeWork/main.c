@@ -64,6 +64,7 @@ void printBufferStatus (void);
 void initBufferStatus(void);
 int firstFitPutIntoMemory(Schedule_node *);
 int BestPutIntoMemory(Schedule_node *);
+int WorstPutIntoMemory(Schedule_node *ptrSchedule);
 void releaseMemory(Schedule_node *);
 void enSchedule_queue(Queue *queue,Schedule_queue *,Schedule_queue *);
 void process_schedule_queue(void (*fitFunctionType)(),Schedule_queue *Scheq,Schedule_node *ptrSchedule);
@@ -114,11 +115,11 @@ int main(int argc, const char * argv[])
         printf("File open failed\n");
         exit(1);
     }
-    wfile=fopen("first.txt","w+");
+    wfile=fopen("log_first.txt","w+");
     if (!wfile) {
         printf("fail to load");
     }
-    xfile=fopen("best.txt", "w+");
+    xfile=fopen("log_best.txt", "w+");
     if (!xfile) {
         printf("fail to load xfile");
     }
@@ -174,34 +175,19 @@ int main(int argc, const char * argv[])
     //End read
     
     
-    //Start Enqueue
+    //Start Enqueue and sort
     
     enSchedule_queue(q,EnterQ,ReleaQ);
 
     ReleaQ->head=sort(ReleaQ->head);
     SchePtr=ReleaQ->head;
-    //lSchedule_node_bubble_sort();
-//    while (SchePtr!=NULL) {
-//       printf("%d %d\n",SchePtr->processID,SchePtr->time);
-//        SchePtr=SchePtr->next;
-//    }
+    
     //End enqueue
     
     
     
     //Test
-//    Schedule_node *ptrSchedule;
-//    ptrSchedule=Scheq->head;
-//    int count=0;
-//    while (ptrSchedule!=NULL) {
-//        count++;
-//        if (ptrSchedule->States==allocate) {
-//            //printf("Enter process ID: %d , Enter time: %d\n",ptrSchedule->processID,ptrSchedule->time);
-//        }else if (ptrSchedule->States==release){
-//            //printf("Release process ID: %d ,time: %d\n",ptrSchedule->processID,ptrSchedule->time);
-//        }
-//        ptrSchedule=ptrSchedule->next;
-//    }
+
     //First-Allocation Algo
     
     
@@ -263,32 +249,34 @@ int main(int argc, const char * argv[])
     while (EnterPtr!=NULL || ReleaPtr!=NULL) {
         if (EnterPtr==NULL) {
             
-            //printf("Enter Queue is empty!\n");
             releaseMemory(ReleaPtr);
             ReleaPtr=ReleaPtr->next;
             
         }else if (ReleaPtr==NULL){
             
-            //printf("Release Queue is empty!\n");
             BestPutIntoMemory(EnterPtr);
             EnterPtr=EnterPtr->next;
         }
         
         else if (EnterPtr->time > ReleaPtr->time) {
             
-            //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
             releaseMemory(ReleaPtr);
             ReleaPtr=ReleaPtr->next;
         }else if (EnterPtr->time == ReleaPtr->time){
             
-           //printf("processing Release %d, Time:%d\n",ReleaPtr->processID,ReleaPtr->time);
             releaseMemory(ReleaPtr);
             ReleaPtr=ReleaPtr->next;
         }else if(EnterPtr->time < ReleaPtr->time){
             
+            cache=BestPutIntoMemory(EnterPtr);
+            if (cache==0) {
+                printf("Fail %d %d\n",EnterPtr->processID,MEMORYSIZE);
+
+            }else if (cache==1){
+                printf("Success: %d %d\n",EnterPtr->processID,EnterPtr->startAd);
+
+            }
             
-            BestPutIntoMemory(EnterPtr);
-            fprintf(xfile,"%d %d\n",EnterPtr->processID,EnterPtr->startAd);
             EnterPtr=EnterPtr->next;
         }else{
             //printf("error");
@@ -426,11 +414,107 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
     int i=0,count=0;
     int minimalLocation=0;
     int startAd,endAd;
+    int memoryStartAd=0,memoryEndAd=0,memory=0;
+    int flag=false;
+    int space=ptrSchedule->alloSpace;
+    int smallestMemory=MEMORYSIZE+1;
+    int smallStartAd=0,smallEndAd=0,smallflag=0;
+    for (i=0; i<MEMORYSIZE-1; i++) {
+        if (buffer[i]=='0') {
+            
+            if (buffer[i+1]=='1') {
+                //really String end ,record the memorysize
+                //and compare to database's best momery
+                //First, database's momery is very large
+                //The first String must be large than spaze
+                //Than got right to compare
+                memoryEndAd=i;
+                //Calcute how memory large
+                memory=(memoryEndAd-memoryStartAd+1);
+                if (memory>=space&&memory<smallestMemory) {
+                    //got better memory
+                    //Store information to database
+                    smallStartAd=memoryStartAd;
+                    smallEndAd=memoryEndAd;
+                    smallestMemory=memory;
+                    smallflag=1;
+                }
+            }else if (buffer[i+1]=='0'){
+                //tmp end
+                memoryEndAd=i+1;
+            }
+        }else if (buffer[i]=='1'){
+            if (buffer[i+1]=='1') {
+                
+            }else if(buffer[i+1]=='0'){
+                memoryStartAd=i+1;
+            }
+        }
+    }
+
+    //Calcute tmp memory size
+    memory=(memoryEndAd-memoryStartAd+1);
+    if (smallflag==1) {
+        //compare to tmp memory
+        //cause the end might end by 0
+        //not store in database
+        
+        //comfime tmp large than space,than got right to compare
+        if (memory<smallestMemory) {
+            //tmp memory is better
+            smallStartAd=memoryStartAd;
+            smallEndAd=memoryEndAd;
+            smallestMemory=memory;
+        }
+        else{
+            //database's data is better
+            
+            //just keep empty
+        }
+        
+        //use smallestmemory to allocate
+        
+        ptrSchedule->releaseNode->startAd=smallStartAd;
+        ptrSchedule->releaseNode->endAd=smallStartAd+space-1;
+        ptrSchedule->startAd=smallStartAd;
+        
+        while (smallStartAd<=smallStartAd+space-1) {
+            buffer[smallStartAd]='1';
+            smallStartAd++;
+        }
+        
+        return  1;
+    }else{
+        //just use tmp memory data
+        //must confirm large than space;
+        if (memory>=space) {
+            ptrSchedule->releaseNode->startAd=memoryStartAd;
+            ptrSchedule->releaseNode->endAd=memoryStartAd+space-1;
+            ptrSchedule->startAd=memoryStartAd;
+            while (memoryStartAd <= (memoryStartAd+space-1)) {
+                buffer[memoryStartAd]='1';
+                memoryStartAd++;
+            }
+            return  1;
+        }else{
+            //not sufficient to provide space to allocate
+            //than mean fail allocate
+            ptrSchedule->releaseNode->startAd=-1;
+            ptrSchedule->releaseNode->endAd=-1;
+            return 0;
+        }
+    }
+    return -1;
+}
+int WorstPutIntoMemory(Schedule_node *ptrSchedule){
+    int i=0,count=0;
+    int minimalLocation=0;
+    int startAd,endAd;
     int memoryStartAd=0,memoryEndAd=0;
     int flag=false;
     int space=ptrSchedule->alloSpace;
-    int smallestflag=MEMORYSIZE+1;
-    int smallStartAd=0,smallEndAd=0;
+    int Largestflag=MEMORYSIZE+1;
+    int LargeStartAd=0,LargeEndAd=0;
     for (i=0; i<MEMORYSIZE-1; i++) {
         if (buffer[i]=='0') {
             
@@ -439,10 +523,10 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
                 memoryEndAd=i;
                 if ((memoryEndAd-memoryStartAd)+1 >= space) {
                     
-                    if ((memoryEndAd-memoryStartAd)+1 < smallestflag ) {
-                        smallestflag=(memoryEndAd-memoryStartAd)+1;
-                        smallStartAd=memoryStartAd;
-                        smallEndAd=memoryEndAd;
+                    if ((memoryEndAd-memoryStartAd)+1 > Largestflag ) {
+                        Largestflag=(memoryEndAd-memoryStartAd)+1;
+                        LargeStartAd=memoryStartAd;
+                        LargeEndAd=memoryEndAd;
                     }
                 }
                 
@@ -458,10 +542,10 @@ int BestPutIntoMemory(Schedule_node *ptrSchedule){
         }
     }
     
-    if (smallestflag!=MEMORYSIZE+1) {
+    if (Largestflag!=MEMORYSIZE+1) {
         //compare two
-        if ((smallEndAd-smallStartAd)+1 < (memoryEndAd-memoryStartAd+1)) {
-            startAd=smallStartAd;
+        if ((LargeEndAd-LargeStartAd)+1 > (memoryEndAd-memoryStartAd+1)) {
+            startAd=LargeStartAd;
             endAd=endAd;
             
             ptrSchedule->releaseNode->endAd=endAd;
