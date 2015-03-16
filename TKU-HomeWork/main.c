@@ -15,8 +15,9 @@ typedef int bool;
 #define true 1
 #define false 0
 #define MEMORYSIZE 10000
-#define MAX(x,y) ( ((x)>(y) ) ? (x):(y) )
 char buffer [MEMORYSIZE];
+#define MAX(x,y) ( ((x)>(y) ) ? (x):(y) )
+
 typedef struct memorynode{
     int startAd;
     int endAd;
@@ -69,13 +70,14 @@ int WorstPutIntoMemory(Schedule_node *ptrSchedule);
 void releaseMemory(Schedule_node *);
 void enSchedule_queue(Queue *queue,Schedule_queue *,Schedule_queue *);
 void process_schedule_queue(void (*fitFunctionType)(),Schedule_queue *Scheq,Schedule_node *ptrSchedule);
-
+void cleanbuffer(void);
 Schedule_node *sort( Schedule_node *start );
 Schedule_node *list_switch( Schedule_node *l1, Schedule_node *l2 );
 //Declaration: For File processing
 FILE *fp;
 FILE *wfile;
 FILE *xfile;
+FILE *yfile;
 //End Declaration
 int main(int argc, const char * argv[])
 {
@@ -123,6 +125,10 @@ int main(int argc, const char * argv[])
     xfile=fopen("log_best.txt", "w+");
     if (!xfile) {
         printf("fail to load xfile");
+    }
+    yfile=fopen("log_worst.txt","w+");
+    if (!yfile) {
+        printf("fail to load yfile");
     }
     //fprintf(wfile, "test\n");
     //End Read
@@ -234,12 +240,12 @@ int main(int argc, const char * argv[])
         }
     }
     fclose(wfile);
-    
+    cleanbuffer();
     printf("First fit complete\n");
     //End First
     
     
-    printf("Best fit\n");
+    
 //Best-Allocation Algo
     
     EnterPtr=EnterQ->head;
@@ -255,11 +261,11 @@ int main(int argc, const char * argv[])
             cache=BestPutIntoMemory(EnterPtr);
             if (cache==0) {
                 
-                //printf("%d %d\n",EnterPtr->processID,MEMORYSIZE);
+                fprintf(xfile,"%d %d\n",EnterPtr->processID,MEMORYSIZE);
                 
             }else if (cache==1){
                 gabege2++;
-                //printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                fprintf(xfile,"%d %d\n",EnterPtr->processID,EnterPtr->startAd);
                 
             }
             EnterPtr=EnterPtr->next;
@@ -276,10 +282,13 @@ int main(int argc, const char * argv[])
         }else if(EnterPtr->time < ReleaPtr->time){
             cache=BestPutIntoMemory(EnterPtr);
             if (cache==0) {
+                //printf("best fail %d!\n",EnterPtr->processID);
+                fprintf(xfile,"%d %d\n",EnterPtr->processID,MEMORYSIZE);
                 gabege++;
             }else if (cache==1){
-                gabege2++;
-                printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                
+                //printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                fprintf(xfile,"%d %d\n",EnterPtr->processID,EnterPtr->startAd);
 
             }
             
@@ -289,10 +298,63 @@ int main(int argc, const char * argv[])
         }
     }
     
+    cleanbuffer();
+    printf("Best fit complete\n");
     //End Best
     
     //Worst-Allocation Algo
     
+    EnterPtr=EnterQ->head;
+    ReleaPtr=ReleaQ->head;
+    
+    while (EnterPtr!=NULL || ReleaPtr!=NULL) {
+        if (EnterPtr==NULL) {
+            
+            releaseMemory(ReleaPtr);
+            ReleaPtr=ReleaPtr->next;
+            
+        }else if (ReleaPtr==NULL){
+            cache=WorstPutIntoMemory(EnterPtr);
+            if (cache==0) {
+                
+                //printf("%d %d\n",EnterPtr->processID,MEMORYSIZE);
+                
+            }else if (cache==1){
+                
+                //printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                
+            }
+            EnterPtr=EnterPtr->next;
+        }
+        
+        else if (EnterPtr->time > ReleaPtr->time) {
+            
+            releaseMemory(ReleaPtr);
+            ReleaPtr=ReleaPtr->next;
+        }else if (EnterPtr->time == ReleaPtr->time){
+            
+            releaseMemory(ReleaPtr);
+            ReleaPtr=ReleaPtr->next;
+        }else if(EnterPtr->time < ReleaPtr->time){
+            cache=WorstPutIntoMemory(EnterPtr);
+            if (cache==0) {
+                
+                fprintf(yfile,"%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                
+            }else if (cache==1){
+               
+                //printf("%d %d\n",EnterPtr->processID,EnterPtr->startAd);
+                fprintf(yfile,"%d %d\n",EnterPtr->processID,MEMORYSIZE);
+                
+            }
+            
+            EnterPtr=EnterPtr->next;
+        }else{
+            //printf("error");
+        }
+    }
+    cleanbuffer();
+    printf("Worst fit complete\n");
     
     
     
@@ -410,191 +472,153 @@ int firstFitPutIntoMemory(Schedule_node *ptrSchedule){
     return -1;
 }
 int BestPutIntoMemory(Schedule_node *ptrSchedule){
-    int i=0,count=0;
-    int minimalLocation=0;
-    int startAd,endAd;
-    int memoryStartAd=0,memoryEndAd=0,memory=0;
-    int flag=false;
     int space=ptrSchedule->alloSpace;
-    int smallestMemory=MEMORYSIZE+1;
-    int smallStartAd=0,smallEndAd=0,smallflag=0;
-    for (i=0; i<MEMORYSIZE-1; i++) {
+    int StartAd=-1,EndAd=-1;
+    int tmpcount,tmpStartAd=-1,tmpEndAd=-1;
+    int count;
+    int startCount;
+    int i;
+    
+    
+    //start to count , after startcount , set as zero
+    startCount=1;
+    //count set as zero
+    count=0;
+    //tmp area
+    tmpcount=MEMORYSIZE+1;
+    for (i=0; i<MEMORYSIZE; i++) {
+        
+        
         if (buffer[i]=='0') {
-            
-            if (buffer[i+1]=='1') {
-                //really String end ,record the memorysize
-                //and compare to database's best momery
-                //First, database's momery is very large
-                //The first String must be large than spaze
-                //Than got right to compare
-                memoryEndAd=i;
-                //Calcute how memory large
-                memory=(memoryEndAd-memoryStartAd+1);
-                if (memory>=space&&memory<smallestMemory) {
-                    //got better memory
-                    //Store information to database
-                    smallStartAd=memoryStartAd;
-                    smallEndAd=memoryEndAd;
-                    smallestMemory=memory;
-                    smallflag=1;
-                }
-            }else if (buffer[i+1]=='0'){
-                //tmp end
-                memoryEndAd=i+1;
-            }
-        }else if (buffer[i]=='1'){
-            if (buffer[i+1]=='1') {
+            if (startCount==1) {
                 
-            }else if(buffer[i+1]=='0'){
-                memoryStartAd=i+1;
+                StartAd=i;
+                startCount=0;
+            }else{
+                
             }
-        }
-    }
-    
-    if (memoryEndAd==0&&memoryStartAd==0) {
-        
-        ptrSchedule->releaseNode->startAd=-1;
-        ptrSchedule->releaseNode->endAd=-1;
-        
-        return 0;
-    }
-    
-    //Calcute tmp memory size
-    memory=(memoryEndAd-memoryStartAd+1);
-    if (smallflag==1) {
-        //compare to tmp memory
-        //cause the end might end by 0
-        //not store in database
-        
-        //comfime tmp large than space,than got right to compare
-        if (memory<smallestMemory) {
-            //tmp memory is better
-            smallStartAd=memoryStartAd;
-            smallEndAd=memoryEndAd;
-            smallestMemory=memory;
-        }
-        else{
-            //database's data is better
+            count++;
             
-            //just keep empty
-        }
-        
-        //use smallestmemory to allocate
-        startAd=smallStartAd;
-        endAd=smallStartAd+space-1;
-        
-        ptrSchedule->releaseNode->startAd=startAd;
-        ptrSchedule->releaseNode->endAd=endAd;
-        ptrSchedule->startAd=smallStartAd;
-        
-        while (smallStartAd<=endAd) {
-            buffer[smallStartAd]='1';
-            smallStartAd++;
-        }
-        
-        return  1;
-    }else{
-        //just use tmp memory data
-        //must confirm large than space;
-        if (memory>=space) {
-            startAd=memoryStartAd;
-            endAd=memoryStartAd+space-1;
-            ptrSchedule->releaseNode->startAd=memoryStartAd;
-            ptrSchedule->releaseNode->endAd=endAd;
-            ptrSchedule->startAd=memoryStartAd;
-            while (memoryStartAd <= endAd) {
-                buffer[memoryStartAd]='1';
-                memoryStartAd++;
-            }
-            return  1;
-        }else{
-            //not sufficient to provide space to allocate
-            //than mean fail allocate
-            
-            ptrSchedule->releaseNode->startAd=-1;
-            ptrSchedule->releaseNode->endAd=-1;
-            
-            return 0;
-        }
-    }
-    return -1;
-}
-int WorstPutIntoMemory(Schedule_node *ptrSchedule){
-    int i=0,count=0;
-    int minimalLocation=0;
-    int startAd,endAd;
-    int memoryStartAd=0,memoryEndAd=0;
-    int flag=false;
-    int space=ptrSchedule->alloSpace;
-    int Largestflag=MEMORYSIZE+1;
-    int LargeStartAd=0,LargeEndAd=0;
-    for (i=0; i<MEMORYSIZE-1; i++) {
-        if (buffer[i]=='0') {
-            
-            if (buffer[i+1]=='1') {
-                //end
-                memoryEndAd=i;
-                if ((memoryEndAd-memoryStartAd)+1 >= space) {
-                    
-                    if ((memoryEndAd-memoryStartAd)+1 > Largestflag ) {
-                        Largestflag=(memoryEndAd-memoryStartAd)+1;
-                        LargeStartAd=memoryStartAd;
-                        LargeEndAd=memoryEndAd;
+            if (i==MEMORYSIZE-1) {
+                if (buffer[i]=='0') {
+                    EndAd=i;
+                    if (tmpcount > count && count>=space) {
+                        tmpStartAd=StartAd;
+                        tmpEndAd=EndAd;
+                        tmpcount=count;
                     }
                 }
                 
-            }else if (buffer[i+1=='0']){
-                memoryEndAd=i+1;
             }
         }else if (buffer[i]=='1'){
-            if (buffer[i+1]=='1') {
-                
-            }else if(buffer[i+1]=='0'){
-                memoryStartAd=i+1;
+            
+            //set startcount as zero , when a new 0 can count again
+            startCount=1;
+            if (i!=0 && buffer[i-1]=='0') {
+                //stop count
+                EndAd=i-1;
+                if (tmpcount > count&& count>=space) {
+                    tmpStartAd=StartAd;
+                    tmpEndAd=EndAd;
+                    tmpcount=count;
+                }
+                count=0;
             }
         }
     }
-    
-    if (Largestflag!=MEMORYSIZE+1) {
-        //compare two
-        if ((LargeEndAd-LargeStartAd)+1 > (memoryEndAd-memoryStartAd+1)) {
-            startAd=LargeStartAd;
-            endAd=endAd;
-            
-            ptrSchedule->releaseNode->endAd=endAd;
-            ptrSchedule->releaseNode->startAd=startAd;
-            ptrSchedule->startAd=startAd;
-            
-            while (startAd<=endAd) {
-                buffer[startAd]='1';
-                startAd++;
-            }
+    if (tmpEndAd==-1&&tmpStartAd==-1) {
+        printf("\nfail\n");
+        ptrSchedule->releaseNode->startAd=-1;
+        ptrSchedule->releaseNode->endAd=-1;
+        return 0;
+    }
+    else{
+        i=tmpStartAd;
+        while (i<=tmpStartAd+space-1) {
+            buffer[i]='1';
+            i++;
         }
-    }else{
-        if ((memoryEndAd-memoryStartAd)+1 >= space) {
-            
-            //use memoryAd to allocate
-            startAd=memoryStartAd;
-            endAd=memoryEndAd;
-            
-            ptrSchedule->releaseNode->endAd=endAd;
-            ptrSchedule->releaseNode->startAd=startAd;
-            ptrSchedule->startAd=startAd;
-            
-            while (startAd<=endAd) {
-                buffer[startAd]='1';
-                startAd++;
-            }
-            
-        }else{
-            //cant putinto
-        }
-        
+        ptrSchedule->releaseNode->endAd=tmpStartAd+space-1;
+        ptrSchedule->releaseNode->startAd=tmpStartAd;
+        ptrSchedule->startAd=tmpStartAd;
+ 
+        printf("Start:%d\n",tmpStartAd);
+        return 1;
     }
     
     return -1;
 }
-
+int WorstPutIntoMemory(Schedule_node *ptrSchedule){
+    int space=ptrSchedule->alloSpace;
+    int StartAd=-1,EndAd=-1;
+    int tmpcount,tmpStartAd=-1,tmpEndAd=-1;
+    int count;
+    int startCount;
+    int i;
+    //start to count , after startcount , set as zero
+    startCount=1;
+    //count set as zero
+    count=0;
+    //tmp area
+    tmpcount=-1;
+    for (i=0; i<MEMORYSIZE; i++) {
+        if (i==MEMORYSIZE-1) {
+            if (buffer[i]=='0') {
+                EndAd=i;
+                if (tmpcount < count && count>=space) {
+                    tmpStartAd=StartAd;
+                    tmpEndAd=EndAd;
+                    tmpcount=count;
+                }
+            }
+            
+        }
+        
+        if (buffer[i]=='0') {
+            if (startCount==1) {
+                
+                StartAd=i;
+                startCount=0;
+            }else{
+                
+            }
+            count++;
+        }else if (buffer[i]=='1'){
+            
+            //set startcount as zero , when a new 0 can count again
+            startCount=1;
+            if (i!=0 && buffer[i-1]=='0') {
+                //stop count
+                EndAd=i-1;
+                if (tmpcount < count&& count>=space) {
+                    tmpStartAd=StartAd;
+                    tmpEndAd=EndAd;
+                    tmpcount=count;
+                }
+                count=0;
+            }
+        }
+    }
+    if (tmpEndAd==-1&&tmpStartAd==-1) {
+        //printf("\nfail\n");
+        ptrSchedule->releaseNode->endAd=-1;
+        ptrSchedule->releaseNode->startAd=-1;
+        return 0;
+    }else{
+        ptrSchedule->releaseNode->startAd=tmpStartAd;
+        ptrSchedule->releaseNode->endAd=tmpStartAd+space-1;
+        ptrSchedule->startAd=tmpStartAd;
+        i=tmpStartAd;
+        while (i<=tmpStartAd+space-1) {
+            buffer[i]='1';
+            i++;
+        }
+        
+        return 1;
+    }
+    
+    return -1;
+}
 void releaseMemory(Schedule_node *ptrSchedule){
     int flag=-1;
     if (ptrSchedule->startAd==-1 && ptrSchedule->endAd ==-1) {
@@ -696,4 +720,10 @@ Schedule_node *list_switch( Schedule_node *l1, Schedule_node *l2 )
     l1->next = l2->next;
     l2->next = l1;
     return l2;
+}
+void cleanbuffer(void){
+    int i;
+    for (i=0; i<MEMORYSIZE; i++) {
+        buffer[i]='0';
+    }
 }
